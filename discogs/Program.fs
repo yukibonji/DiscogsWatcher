@@ -52,7 +52,7 @@ let main argv =
     let getPrice (l: Listings.Root) =
         match l.Price.Number with
         | Some p -> p
-        | None -> l.Price.String.Value.[3..] |> Decimal.Parse
+        | None -> l.Price.String.Value.[3..] |> Decimal.Parse // special snowflake Swiss Frank
 
     let getBody (listings: seq<Listings.Root>) =
         let m = listings |> Seq.map (fun l -> sprintf "http://www.discogs.com/sell/item/%d" l.Id)
