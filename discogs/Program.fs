@@ -1,16 +1,26 @@
 ﻿module DiscogsWatcher.Program
 
-open System
-open System.Threading
 open DiscogsWatcher.Dal
+open System.Threading.Tasks
+open Topshelf.FSharpApi
+open Time
 
 [<EntryPoint>]
-let main argv = 
-    let interval = argv.[0] |> Int32.Parse
-    printfn "Starting, interval %d minutes" interval
+let main _ =
+    let timer = new System.Timers.Timer ((min 10).TotalMilliseconds, AutoReset = true)
+    timer.Elapsed
+    |> Observable.add (fun _ -> Task.Run checkForNewListings |> ignore)
 
-    while true do
-        checkForNewListings ()
-        printf "."
-        Thread.Sleep (60 * 1000 * interval)
-    0
+    let start _ =
+        timer.Start ()
+        true
+
+    let stop _ =
+        timer.Dispose ()
+        true
+
+    Service.Default
+    |> with_start start
+    |> with_stop stop
+    |> service_name "DiscogsWatcher"
+    |> run
