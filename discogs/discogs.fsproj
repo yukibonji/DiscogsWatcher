@@ -62,7 +62,8 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Configs.fs" />
-    <Compile Include="Dal.fs" />
+    <Compile Include="ListingChecker.fs" />
+    <Compile Include="Mailer.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />

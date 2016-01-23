@@ -1,11 +1,8 @@
-﻿module DiscogsWatcher.Dal
+﻿module DiscogsWatcher.ListingChecker
 
 open FSharp.Data
 open FSharp.Data.Sql
 open System
-open System.Collections.Specialized
-open System.Text
-open System.Net
 open System.Threading
 open DiscogsWatcher.Configs
 
@@ -38,10 +35,6 @@ let getPrice (l: Listings.Root) =
     | Some p -> p
     | None -> l.Price.String.Value.[3..] |> Decimal.Parse
 
-let getBody (listings: seq<Listings.Root>) =
-    let m = listings |> Seq.map (fun l -> sprintf "http://www.discogs.com/sell/item/%d" l.Id)
-    String.Join("\\n", m)
-
 let checkForNewListings () =
     let ctx = Db.GetDataContext()
 
@@ -51,33 +44,25 @@ let checkForNewListings () =
     
     let releasesInWantlist =
         MyWantlist.GetSample().Wants
-        |> Seq.map (fun r -> match r.Notes with Some p -> Some (r.Id, decimal p) | _ -> None)
-        |> Seq.choose id
+        |> Seq.choose (fun r -> match r.Notes with Some p -> Some (r.Id, decimal p) | _ -> None)
         |> dict
     
     let cheapListings =
         releasesInWantlist.Keys
         |> Seq.map (listingUri >> loadListing)
         |> Seq.collect (Seq.filter (fun l -> listingsAlreadySeen.Contains l.Id |> not && getPrice l <= releasesInWantlist.[l.ReleaseId]))
-        |> Seq.toArray
+        |> Seq.toList
 
     cheapListings
-    |> Array.iter (fun l -> let n = ctx.Dbo.Listings.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom)
-                            n.ListingId <- l.Id)
-        
-    if cheapListings.Length > 0 then
-        ctx.SubmitUpdates ()
+    |> List.iter (fun l -> let n = ctx.Dbo.Listings.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom)
+                           n.ListingId <- l.Id)
+    ctx.SubmitUpdates ()
+    cheapListings |> List.map (fun l -> l.Id)
 
-        use wc = new WebClient ()
-        wc.Headers.["Content-Type"] <- "application/x-www-form-urlencoded"
-        wc.Headers.["Authorization"] <- "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes(mailgunApiKey))
-
-        let vals = NameValueCollection()
-        vals.["to"] <- recipient
-        vals.["subject"] <- "discogs watch"
-        vals.["text"] <- getBody cheapListings
-        vals.["from"] <- "Watcher" 
-
-        wc.UploadValues (mailgunUrl, vals) |> ignore
-
-        printfn "\n%d eligible listings found at %s" cheapListings.Length (DateTime.Now.ToString())
+let cheapListingChecker: MailboxProcessor<AsyncReplyChannel<_>> =
+    MailboxProcessor.Start(fun inbox ->
+        let rec loop () = async {
+            let! msg = inbox.Receive ()
+            checkForNewListings () |> msg.Reply
+            return! loop () }
+        loop ())
