@@ -87,6 +87,14 @@
     <Reference Include="System.Numerics" />
     <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq" />
+    <Reference Include="Topshelf">
+      <HintPath>..\packages\Topshelf.3.3.1\lib\net40-full\Topshelf.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Topshelf.FSharp">
+      <HintPath>..\packages\Topshelf.FSharp.2.1.0\lib\net40\Topshelf.FSharp.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <Import Project="..\packages\SQLitePCL.raw_basic.0.7.0\build\net45\SQLitePCL.raw_basic.targets" Condition="Exists('..\packages\SQLitePCL.raw_basic.0.7.0\build\net45\SQLitePCL.raw_basic.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
