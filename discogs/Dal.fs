@@ -20,7 +20,7 @@ let ListingSample = BaseListingUri + "1"
 
 type Listings = JsonProvider<ListingSample>
 type MyWantlist = JsonProvider<DiscogsWantlistUri>
-type Db = SqlDataProvider<ConnectionString>
+type Db = SqlDataProvider<ConnectionString = ConnectionString>
 
 let listingUri id = sprintf "%s%d&token=%s" BaseListingUri id DiscogsToken
 
@@ -46,7 +46,7 @@ let checkForNewListings () =
     let ctx = Db.GetDataContext()
 
     let listingsAlreadySeen = query {
-        for listing in ctx.``[dbo].[Listings]`` do 
+        for listing in ctx.Dbo.Listings do 
         select listing.ListingId } |> Set.ofSeq
     
     let releasesInWantlist =
@@ -62,7 +62,7 @@ let checkForNewListings () =
         |> Seq.toArray
 
     cheapListings
-    |> Array.iter (fun l -> let n = ctx.``[dbo].[Listings]``.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom)
+    |> Array.iter (fun l -> let n = ctx.Dbo.Listings.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom)
                             n.ListingId <- l.Id)
         
     if cheapListings.Length > 0 then
