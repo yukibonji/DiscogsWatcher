@@ -3,7 +3,7 @@
 open FSharp.Data
 open FSharp.Data.Sql
 open System
-open System.Threading
+open FSharp.Control
 open DiscogsWatcher.Configs
 
 [<Literal>]
@@ -21,48 +21,53 @@ type Db = SqlDataProvider<ConnectionString = ConnectionString>
 
 let listingUri id = sprintf "%s%d&token=%s" BaseListingUri id DiscogsToken
 
-let loadListing (uri: string) =
-    Thread.Sleep 3000 // let's not hit discogs API rate limits
+let loadListing (uri: string) = async {
+    printfn "loading!"
+    do! Async.Sleep 3000 // let's not hit discogs API rate limits
 
     try
-        Listings.Load uri
+        printfn "done"
+        return! Listings.AsyncLoad uri
     with _ ->
         printfn "\nLoadListing failed"
-        [| |]
+        return [| |] }
 
 let getPrice (l: Listings.Root) =
     match l.Price.Number with
     | Some p -> p
     | None -> l.Price.String.Value.[3..] |> Decimal.Parse
 
-let checkForNewListings () =
+let checkForNewListings () = async {
     let ctx = Db.GetDataContext()
 
     let listingsAlreadySeen = query {
         for listing in ctx.Dbo.Listings do 
         select listing.ListingId } |> Set.ofSeq
-    
+
+    let! wantlist = MyWantlist.AsyncGetSample()
     let releasesInWantlist =
-        MyWantlist.GetSample().Wants
+        wantlist.Wants
         |> Seq.choose (fun r -> match r.Notes with Some p -> Some (r.Id, decimal p) | _ -> None)
         |> dict
-    
-    let cheapListings =
-        releasesInWantlist.Keys
-        |> Seq.map (listingUri >> loadListing)
-        |> Seq.collect (Seq.filter (fun l -> listingsAlreadySeen.Contains l.Id |> not && getPrice l <= releasesInWantlist.[l.ReleaseId]))
-        |> Seq.toList
+
+    let! cheapListings = releasesInWantlist.Keys
+                         |> AsyncSeq.ofSeq
+                         |> AsyncSeq.mapAsync (listingUri >> loadListing)
+                         |> AsyncSeq.concatSeq
+                         |> AsyncSeq.filter (fun l -> listingsAlreadySeen.Contains l.Id |> not && getPrice l <= releasesInWantlist.[l.ReleaseId])
+                         |> AsyncSeq.toListAsync
 
     cheapListings
     |> List.iter (fun l -> let n = ctx.Dbo.Listings.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom)
                            n.ListingId <- l.Id)
     ctx.SubmitUpdates ()
-    cheapListings |> List.map (fun l -> l.Id)
+    return cheapListings |> List.map (fun l -> l.Id) }
 
 let cheapListingChecker: MailboxProcessor<AsyncReplyChannel<_>> =
     MailboxProcessor.Start(fun inbox ->
         let rec loop () = async {
             let! msg = inbox.Receive ()
-            checkForNewListings () |> msg.Reply
+            let! newListings = checkForNewListings ()
+            msg.Reply newListings
             return! loop () }
         loop ())

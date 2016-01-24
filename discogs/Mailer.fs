@@ -25,6 +25,6 @@ let mailer =
             vals.["text"] <- getBody listingIds
             vals.["from"] <- "Watcher" 
 
-            wc.UploadValues (mailgunUrl, vals) |> ignore
+            do! wc.UploadValuesTaskAsync (mailgunUrl, vals) |> Async.AwaitTask |> Async.Ignore
             return! loop () }
         loop ())
