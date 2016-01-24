@@ -22,14 +22,10 @@ type Db = SqlDataProvider<ConnectionString = ConnectionString>
 let listingUri id = sprintf "%s%d&token=%s" BaseListingUri id DiscogsToken
 
 let loadListing (uri: string) = async {
-    printfn "loading!"
     do! Async.Sleep 3000 // let's not hit discogs API rate limits
-
     try
-        printfn "done"
         return! Listings.AsyncLoad uri
     with _ ->
-        printfn "\nLoadListing failed"
         return [| |] }
 
 let getPrice (l: Listings.Root) =
