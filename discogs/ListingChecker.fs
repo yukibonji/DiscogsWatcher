@@ -45,12 +45,16 @@ let checkForNewListings () = async {
         |> Seq.choose (fun r -> match r.Notes with Some p -> Some (r.Id, decimal p) | _ -> None)
         |> dict
 
-    let! cheapListings = releasesInWantlist.Keys
-                         |> AsyncSeq.ofSeq
-                         |> AsyncSeq.mapAsync (listingUri >> loadListing)
-                         |> AsyncSeq.concatSeq
-                         |> AsyncSeq.filter (fun l -> listingsAlreadySeen.Contains l.Id |> not && getPrice l <= releasesInWantlist.[l.ReleaseId])
-                         |> AsyncSeq.toListAsync
+    let! allListings =
+        releasesInWantlist.Keys
+        |> Seq.map (listingUri >> loadListing)
+        |> Async.Parallel
+
+    let cheapListings =
+        allListings
+        |> Array.concat
+        |> Array.filter (fun l -> listingsAlreadySeen.Contains l.Id |> not && getPrice l <= releasesInWantlist.[l.ReleaseId])
+        |> Array.toList
 
     cheapListings
     |> List.iter (fun l -> let n = ctx.Dbo.Listings.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom)

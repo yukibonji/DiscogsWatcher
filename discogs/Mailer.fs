@@ -21,9 +21,9 @@ let mailer =
 
             let vals = NameValueCollection()
             vals.["to"] <- recipient
-            vals.["subject"] <- "discogs watch"
+            vals.["subject"] <- "New cheap listings"
             vals.["text"] <- getBody listingIds
-            vals.["from"] <- "Watcher" 
+            vals.["from"] <- sender
 
             do! wc.UploadValuesTaskAsync (mailgunUrl, vals) |> Async.AwaitTask |> Async.Ignore
             return! loop () }
