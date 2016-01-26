@@ -19,11 +19,9 @@ type Listings = JsonProvider<ListingSample>
 type MyWantlist = JsonProvider<DiscogsWantlistUri>
 type Db = SqlDataProvider<ConnectionString = ConnectionString>
 
-let listingUri id = sprintf "%s%d&token=%s" BaseListingUri id DiscogsToken
-
-let loadListing uri = async {
+let loadListings releaseId = async {
     try
-        return! Listings.AsyncLoad uri
+        return! sprintf "%s%d&token=%s" BaseListingUri releaseId DiscogsToken |> Listings.AsyncLoad
     with _ ->
         return [| |] }
 
@@ -47,7 +45,7 @@ let checkForNewListings () = async {
 
     let! allListings =
         releasesInWantlist.Keys
-        |> Seq.map (listingUri >> loadListing)
+        |> Seq.map loadListings
         |> Async.Parallel
 
     let cheapListings =
@@ -56,10 +54,9 @@ let checkForNewListings () = async {
         |> Array.filter (fun l -> listingsAlreadySeen.Contains l.Id |> not && getPrice l <= releasesInWantlist.[l.ReleaseId])
         |> Array.toList
 
-    cheapListings
-    |> List.iter (fun l -> let n = ctx.Dbo.Listings.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom)
-                           n.ListingId <- l.Id)
-    ctx.SubmitUpdates ()
+    cheapListings |> List.iter (fun l -> ctx.Dbo.Listings.Create(l.Currency, getPrice l, l.ReleaseId, l.ShipsFrom).ListingId <- l.Id)
+    if not cheapListings.IsEmpty then ctx.SubmitUpdates ()
+
     return cheapListings |> List.map (fun l -> l.Id) }
 
 let cheapListingChecker: MailboxProcessor<AsyncReplyChannel<_>> =
